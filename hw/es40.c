@@ -40,10 +40,25 @@
 //#define DEBUG_TIGBUS
 
 /* For Rombuild.  */
+#if 1
 #define ROMBUILD_BIOS_FILENAME "cl67srmrom.exe"
 #define LFU_HDR_SIZE 0x240
+
 #define LFU_START_ADDR 0x900000
 #define LFU_LOAD_ADDR  0x900000
+
+
+#else
+#define ROMBUILD_BIOS_FILENAME "clarcrom.exe"
+//#define LFU_HDR_SIZE 0x40
+#define LFU_HDR_SIZE 0x40
+
+#define LFU_START_ADDR 0x900000
+#define LFU_LOAD_ADDR  0x900000
+
+#endif
+
+
 #define LFU_MEM_SIZE   0x1000000
 #define LFU_RAM_OFFSET 0x400000
 
@@ -615,6 +630,8 @@ static void tigbus_init (uint64_t arr[], BlockDriverState *flash_bs)
     for (i = 0x20; i < 0x80; i++)
         S(i, 0);    /* For other cpus.  */
 
+   S(0x3f, 0xf);
+
     /* Array configuration */
     for (i = 0x0; i < 0x4; i++) {
         S(0x80 + 2 * i, arr[i] ? 0xf0 | i : 4);
@@ -747,7 +764,8 @@ static void tigbus_init (uint64_t arr[], BlockDriverState *flash_bs)
 
     flash_io = cpu_register_io_memory(0, flash_read, flash_write, flash);
     cpu_register_physical_memory(0x80100000000ULL, 0x8000000, flash_io);
-
+//axp64 is trying to read this address like crazy
+//			         0x08900000061ULL
     tigbus_reset(s);
     qemu_register_reset(&tigbus_reset, s);
 }
@@ -991,7 +1009,15 @@ vga_bios_error:
         cpu_register_physical_memory(isa_mem_base + 0xc0000, 0x10000,
                                      vga_bios_offset | IO_MEM_ROM);
 
+//	set firmware to console VGA
         rtc_set_memory(rtc, 0x17, 1);
+//      rtc_set_memory(rtc, 0x17, 0);
+//https://ia902805.us.archive.org/13/items/dec-pc64_users_gde/pc64_users_gde.pdf
+        rtc_set_memory(rtc, 0x3f, 0x1);
+//sets os_type to NT
+        rtc_set_memory(rtc, 0x1a, 0x1);
+
+
     }
 
     es40_cpu_reset(env);

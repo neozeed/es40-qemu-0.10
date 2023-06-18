@@ -1075,7 +1075,6 @@ void do_savevm(Monitor *mon, const char *name)
     }
 
     /* create the snapshots */
-
     for(i = 0; i < nb_drives; i++) {
         bs1 = drives_table[i].bdrv;
         if (bdrv_has_snapshot(bs1)) {
@@ -1096,6 +1095,7 @@ void do_savevm(Monitor *mon, const char *name)
             }
         }
     }
+
 
  the_end:
     if (saved_vm_running)

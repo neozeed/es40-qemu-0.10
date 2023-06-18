@@ -168,6 +168,10 @@ ALI1543State *ali1543_init (PCIBus *bus, int devfn, qemu_irq irq)
             hd[i] = NULL;
     }
     pci_m5229_ide_init(bus, hd, devfn + (8 << 3), ali->i8259);
+//static const int ide_iobase[2] = { 0x1f0, 0x170 };
+//static const int ide_iobase2[2] = { 0x3f6, 0x376 };
+//    isa_ide_init(0x1f0, 0x170, 14,hd[0], hd[1]);
+//    isa_ide_init(0x3f6, 0x376, 14,hd[2], hd[3]);
 
     return ali;
 }

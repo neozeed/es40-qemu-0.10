@@ -1,3 +1,6 @@
+#define COUNT_FACTOR 1
+#define IDE_DELAY 250
+#define LIMIT_IDE 0
 /*
  * QEMU IDE disk and CD/DVD-ROM Emulator
  *
@@ -433,6 +436,7 @@ typedef struct IDEState {
     uint8_t *data_end;
     uint8_t *io_buffer;
     QEMUTimer *sector_write_timer; /* only used for win2k install hack */
+    QEMUTimer *sector_read_timer; /* only used for win2k install hack */
     uint32_t irq_count; /* counts IRQs when using win2k install hack */
     /* CF-ATA extended error */
     uint8_t ext_error;
@@ -564,6 +568,7 @@ static void ide_identify(IDEState *s)
     put_le16(p + 22, 4); /* ecc bytes */
     padstr((char *)(p + 23), QEMU_VERSION, 8); /* firmware version */
     padstr((char *)(p + 27), "QEMU HARDDISK", 40); /* model */
+#if LIMIT_IDE
 #if MAX_MULT_SECTORS > 1
     put_le16(p + 47, 0x8000 | MAX_MULT_SECTORS);
 #endif
@@ -604,7 +609,7 @@ static void ide_identify(IDEState *s)
     put_le16(p + 101, s->nb_sectors >> 16);
     put_le16(p + 102, s->nb_sectors >> 32);
     put_le16(p + 103, s->nb_sectors >> 48);
-
+#endif
     memcpy(s->identify_data, p, sizeof(s->identify_data));
     s->identify_set = 1;
 }
@@ -629,6 +634,7 @@ static void ide_atapi_identify(IDEState *s)
     padstr((char *)(p + 23), QEMU_VERSION, 8); /* firmware version */
     padstr((char *)(p + 27), "QEMU DVD-ROM", 40); /* model */
     put_le16(p + 48, 1); /* dword I/O (XXX: should not be set on CDROM) */
+#if LIMIT_IDE
 #ifdef USE_DMA_CDROM
     put_le16(p + 49, 1 << 9 | 1 << 8); /* DMA and LBA supported */
     put_le16(p + 53, 7); /* words 64-70, 54-58, 88 valid */
@@ -652,6 +658,7 @@ static void ide_atapi_identify(IDEState *s)
     put_le16(p + 80, 0x1e); /* support up to ATA/ATAPI-4 */
 #ifdef USE_DMA_CDROM
     put_le16(p + 88, 0x3f | (1 << 13)); /* udma5 set and supported */
+#endif
 #endif
     memcpy(s->identify_data, p, sizeof(s->identify_data));
     s->identify_set = 1;
@@ -863,7 +870,23 @@ static void ide_sector_read(IDEState *s)
             return;
         }
         ide_transfer_start(s, s->io_buffer, 512 * n, ide_sector_read);
+//        ide_set_irq(s);
+///////////
+#ifdef SLOW_IDE
+    if ((++s->irq_count % COUNT_FACTOR) == 0) {
+        qemu_mod_timer(s->sector_read_timer, 
+                       qemu_get_clock(vm_clock) + (ticks_per_sec / IDE_DELAY));
+	fprintf(stderr,"r");
+    } else 
+
+    {
         ide_set_irq(s);
+	fprintf(stderr,"R");
+    }
+#else
+        ide_set_irq(s);
+#endif
+///////////
         ide_set_sector(s, sector_num + n);
         s->nsector -= n;
     }
@@ -1058,6 +1081,13 @@ static void ide_sector_write_timer_cb(void *opaque)
     ide_set_irq(s);
 }
 
+static void ide_sector_read_timer_cb(void *opaque)
+{
+    IDEState *s = opaque;
+    ide_set_irq(s);
+}
+
+
 static void ide_sector_write(IDEState *s)
 {
     int64_t sector_num;
@@ -1065,9 +1095,9 @@ static void ide_sector_write(IDEState *s)
 
     s->status = READY_STAT | SEEK_STAT;
     sector_num = ide_get_sector(s);
-#if defined(DEBUG_IDE)
+//#if defined(DEBUG_IDE)
     printf("write sector=%" PRId64 "\n", sector_num);
-#endif
+//#endif
     n = s->nsector;
     if (n > s->req_nb_sectors)
         n = s->req_nb_sectors;
@@ -1102,9 +1132,22 @@ static void ide_sector_write(IDEState *s)
                        qemu_get_clock(vm_clock) + (ticks_per_sec / 1000));
     } else 
 #endif
+//ADDED THE 2K DELAY
+#ifdef SLOW_IDE
+    if ((++s->irq_count % COUNT_FACTOR) == 0) {
+        qemu_mod_timer(s->sector_write_timer, 
+                       qemu_get_clock(vm_clock) + (ticks_per_sec / IDE_DELAY));
+	fprintf(stderr,"w");
+    } else 
+
     {
         ide_set_irq(s);
+	fprintf(stderr,"W");
     }
+#else
+        ide_set_irq(s);
+#endif
+fflush(stderr);
 }
 
 static void ide_dma_restart_cb(void *opaque, int running, int reason)
@@ -2367,6 +2410,7 @@ static void ide_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 			put_le16(s->identify_data + 63,0x07);
 			put_le16(s->identify_data + 88,0x3f);
 			break;
+#if LIMIT_IDE
                     case 0x02: /* sigle word dma mode*/
 			put_le16(s->identify_data + 62,0x07 | (1 << (val + 8)));
 			put_le16(s->identify_data + 63,0x07);
@@ -2382,6 +2426,7 @@ static void ide_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 			put_le16(s->identify_data + 63,0x07);
 			put_le16(s->identify_data + 88,0x3f | (1 << (val + 8)));
 			break;
+#endif
 		    default:
 			goto abort_cmd;
 		}
@@ -2812,6 +2857,8 @@ static void ide_init2(IDEState *ide_state,
         s->irq = irq;
         s->sector_write_timer = qemu_new_timer(vm_clock,
                                                ide_sector_write_timer_cb, s);
+        s->sector_read_timer = qemu_new_timer(vm_clock,
+                                               ide_sector_read_timer_cb, s);
         ide_reset(s);
     }
 }

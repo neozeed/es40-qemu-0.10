@@ -771,7 +771,7 @@ fi
 sdl_too_old=no
 
 if test -z "$sdl" ; then
-    sdl_config="sdl-config"
+    sdl_config="sh sdl-config"
     sdl=no
     sdl_static=no
 

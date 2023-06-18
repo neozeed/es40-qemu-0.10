@@ -3176,7 +3176,7 @@ static void cirrus_reset(void *opaque)
     vga_reset(s);
     unmap_linear_vram(s);
     s->sr[0x06] = 0x0f;
-    if (s->device_id == CIRRUS_ID_CLGD5446) {
+    if (s->device_id == CIRRUS_ID_CLGD5434) {
         /* 4MB 64 bit memory config, always PCI */
         s->sr[0x1F] = 0x2d;		// MemClock
         s->gr[0x18] = 0x0f;             // fastest memory configuration
@@ -3266,7 +3266,7 @@ static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci)
         cpu_register_io_memory(0, cirrus_mmio_read, cirrus_mmio_write, s);
 
     s->real_vram_size =
-        (s->device_id == CIRRUS_ID_CLGD5446) ? 4096 * 1024 : 2048 * 1024;
+        (s->device_id == CIRRUS_ID_CLGD5434) ? 4096 * 1024 : 2048 * 1024;
 
     /* XXX: s->vram_size must be a power of two */
     s->cirrus_addr_mask = s->real_vram_size - 1;
@@ -3367,13 +3367,39 @@ void pci_cirrus_vga_init(PCIBus *bus, uint8_t *vga_ram_base,
     CirrusVGAState *s;
     int device_id;
 
-    device_id = CIRRUS_ID_CLGD5446;
+    device_id = CIRRUS_ID_CLGD5434;
 
     /* setup PCI configuration registers */
+// AlphaServer%20ES40%20Owners%20Guide.pdf 
+// vga in slot 4
+/*
+Hose 0, Bus 0, PCI
+Slot 2/0 SCSI controller
+Slot 2/1 SCSI controller
+Slot 4 VGA controller
+Slot 7 PCI to ISA bridge chip
+Slot 15 IDE controller and CD-ROM drive
+Slot 19 Universal serial bus (USB) controller
+Hose 0, Bus 1, ISA
+Diskette drive
+Hose 1, Bus 0, PCI
+Slot 1 SCSI controller and drives
+Slot 3 SCSI controller and drives
+Slot 4 Ethernet controller
+Slot 6 PCI-to-PCI bridge chip to Bus 2
+Hose 1, Bus 2, PCI
+Slot 0 SCSI controller
+Slot 1 SCSI controller
+Slot 2 Ethernet controller
+*/
+
     d = (PCICirrusVGAState *)pci_register_device(bus, "Cirrus VGA",
                                                  sizeof(PCICirrusVGAState),
-                                                 -1, NULL, pci_cirrus_write_config);
+						PCI_DEVFN(4,0), NULL, pci_cirrus_write_config);
+//                                                 -1, NULL, pci_cirrus_write_config);
     pci_conf = d->dev.config;
+//#define PCI_VENDOR_ID_CIRRUS             0x1013
+//BOCHS					0x00a81013
     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_CIRRUS);
     pci_config_set_device_id(pci_conf, device_id);
     pci_conf[0x04] = PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS;
@@ -3397,7 +3423,7 @@ void pci_cirrus_vga_init(PCIBus *bus, uint8_t *vga_ram_base,
     /* XXX: s->vram_size must be a power of two */
     pci_register_io_region((PCIDevice *)d, 0, 0x2000000,
 			   PCI_ADDRESS_SPACE_MEM_PREFETCH, cirrus_pci_lfb_map);
-    if (device_id == CIRRUS_ID_CLGD5446) {
+    if (device_id == CIRRUS_ID_CLGD5434) {
         pci_register_io_region((PCIDevice *)d, 1, CIRRUS_PNPMMIO_SIZE,
                                PCI_ADDRESS_SPACE_MEM, cirrus_pci_mmio_map);
     }
