@@ -1,3 +1,10 @@
-Read the documentation in qemu-doc.html.
+All the souce was taken from here:
+https://repo.or.cz/w/qemu/es40.git
 
-Fabrice Bellard.
+I'm only testing this with GCC 3!
+https://archive.org/download/es40-1211e8a/MinGW3-for-qemu.7z
+
+configure the build
+sh configure --target-list=alpha-softmmu
+
+And get ready for so much not to work.
